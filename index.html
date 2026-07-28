@@ -199,6 +199,12 @@
             return `https://app.app-${name}.monolith-devpod.apps-global.gcp001.dev.box.net`;
         }
 
+        // File content uploads are served by the upload host, not the main API host.
+        function getUploadBase() {
+            const name = document.getElementById('devpod').value.trim();
+            return `https://upload.app-${name}.monolith-devpod.apps-global.gcp001.dev.box.net`;
+        }
+
         function getClientId() {
             const base = getDevpodBase();
             const path = document.getElementById('metadataPath').value.trim();
@@ -440,7 +446,7 @@
             formData.append('attributes', attributes);
             formData.append('file', file);
 
-            const response = await fetch(`${getDevpodBase()}/api/2.0/files/content`, {
+            const response = await fetch(`${getUploadBase()}/api/2.0/files/content`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
