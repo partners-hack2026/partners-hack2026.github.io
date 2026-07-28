@@ -143,17 +143,16 @@
 
             <div class="card">
                 <h2>AI Extract Configuration</h2>
-                <label for="extractPrompt">Extraction Prompt (what metadata to extract)</label>
-                <textarea id="extractPrompt" rows="3" placeholder="e.g., Extract the invoice number, date, vendor name, total amount, and line items.">Extract all key metadata: document type, date, parties/names, amounts, reference numbers, and any important terms or conditions.</textarea>
+                <p style="font-size:13px; color:#6b7280; margin-bottom:16px;">On upload, your Box Automate <strong>Extract agent</strong> runs and writes structured metadata onto the file against the template below. The app polls the file's metadata until the agent finishes.</p>
 
-                <label for="extractFields">Structured Fields (JSON array, optional)</label>
-                <textarea id="extractFields" rows="6" placeholder='[{"key":"vendor","type":"string","prompt":"The vendor or company name"}]'>[
-  {"key": "document_type", "type": "string", "prompt": "The type of document (invoice, contract, receipt, etc.)"},
-  {"key": "date", "type": "date", "prompt": "The primary date on the document"},
-  {"key": "total_amount", "type": "float", "prompt": "The total monetary amount"},
-  {"key": "parties", "type": "string", "prompt": "Names of people or organizations involved"},
-  {"key": "reference_number", "type": "string", "prompt": "Any reference, invoice, or contract number"}
-]</textarea>
+                <label for="templateScope">Metadata Template Scope</label>
+                <input type="text" id="templateScope" value="enterprise" placeholder="enterprise">
+
+                <label for="templateKey">Metadata Template Key</label>
+                <input type="text" id="templateKey" value="invoiceMetadataTemplate_e147cdf6cf" placeholder="invoiceMetadataTemplate_e147cdf6cf">
+
+                <label for="pollTimeout">Poll Timeout (seconds)</label>
+                <input type="number" id="pollTimeout" value="60" min="5" max="300">
 
                 <button id="btnExtract" onclick="uploadAndExtract()" disabled>Upload & Extract Metadata</button>
                 <button class="btn-secondary" onclick="resetExtract()" style="margin-left:8px;">Clear</button>
@@ -415,9 +414,9 @@
                 const fileId = await uploadFileToBox(selectedFile);
                 log(`File uploaded successfully! File ID: ${fileId}`, 'success');
 
-                // Step 2: Extract metadata using Box AI
-                log('Calling Box AI Extract...', 'info');
-                const metadata = await extractMetadata(fileId);
+                // Step 2: Extract agent runs on upload — poll the file's metadata until populated
+                log('Waiting for Box Automate Extract agent to process the file...', 'info');
+                const metadata = await pollMetadata(fileId);
                 log('Metadata extraction complete!', 'success');
 
                 // Display results
@@ -465,60 +464,45 @@
             return fileId;
         }
 
-        async function extractMetadata(fileId) {
-            const prompt = document.getElementById('extractPrompt').value.trim();
-            const fieldsRaw = document.getElementById('extractFields').value.trim();
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
 
-            let body = {
-                items: [{ id: fileId, type: 'file' }]
-            };
+        // The Box Automate Extract agent runs asynchronously on upload and writes a metadata
+        // instance onto the file. We poll that instance until it appears (or the timeout hits).
+        async function pollMetadata(fileId) {
+            const scope = document.getElementById('templateScope').value.trim() || 'enterprise';
+            const templateKey = document.getElementById('templateKey').value.trim();
+            if (!templateKey) throw new Error('Metadata template key is required.');
 
-            if (fieldsRaw) {
-                try {
-                    const fields = JSON.parse(fieldsRaw);
-                    body.fields = fields;
-                    log(`Using structured extraction with ${fields.length} fields`, 'info');
+            const timeoutMs = (parseInt(document.getElementById('pollTimeout').value, 10) || 60) * 1000;
+            const intervalMs = 3000;
+            const url = `${getDevpodBase()}/api/2.0/files/${fileId}/metadata/${scope}/${templateKey}`;
+            const deadline = Date.now() + timeoutMs;
+            let attempt = 0;
 
-                    const response = await fetch(`${getDevpodBase()}/api/2.0/ai/extract_structured`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(body)
-                    });
+            while (Date.now() < deadline) {
+                attempt++;
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
 
-                    if (!response.ok) {
-                        const errBody = await response.json().catch(() => ({}));
-                        throw new Error(`AI Extract failed (${response.status}): ${errBody.message || errBody.code || response.statusText}`);
-                    }
-
+                if (response.ok) {
                     return await response.json();
-                } catch (parseErr) {
-                    if (parseErr.message.includes('AI Extract')) throw parseErr;
-                    log('Invalid fields JSON, falling back to freeform extraction', 'warn');
                 }
-            }
 
-            // Freeform extraction
-            body.prompt = prompt || 'Extract all key metadata from this document.';
-            log(`Using freeform extraction with prompt: "${body.prompt.substring(0, 60)}..."`, 'info');
+                if (response.status === 404) {
+                    // Agent hasn't written the instance yet — keep waiting.
+                    log(`Agent still processing (attempt ${attempt})...`, 'info');
+                    await sleep(intervalMs);
+                    continue;
+                }
 
-            const response = await fetch(`${getDevpodBase()}/api/2.0/ai/extract`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-
-            if (!response.ok) {
                 const errBody = await response.json().catch(() => ({}));
-                throw new Error(`AI Extract failed (${response.status}): ${errBody.message || errBody.code || response.statusText}`);
+                throw new Error(`Metadata read failed (${response.status}): ${errBody.message || errBody.code || response.statusText}`);
             }
 
-            return await response.json();
+            throw new Error(`Timed out after ${timeoutMs / 1000}s waiting for the Extract agent to populate metadata. Check that the agent is triggered on this upload location.`);
         }
 
         function displayMetadata(metadata) {
@@ -530,31 +514,18 @@
 
             let html = '';
 
-            if (metadata.answer) {
-                // Freeform extraction response
-                html += `<div style="background:#f9fafb; border-radius:6px; padding:16px; font-size:13px; white-space:pre-wrap;">${escapeHtml(metadata.answer)}</div>`;
-            } else if (metadata.entries || metadata.fields || metadata) {
-                // Structured extraction response
-                const entries = metadata.entries || metadata.fields || metadata;
-                if (typeof entries === 'object' && !Array.isArray(entries)) {
-                    html += '<table>';
-                    html += '<tr><th>Field</th><th>Value</th></tr>';
-                    for (const [key, value] of Object.entries(entries)) {
-                        if (key === 'type' || key === 'id') continue;
-                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
-                        html += `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(displayValue)}</td></tr>`;
-                    }
-                    html += '</table>';
-                } else if (Array.isArray(entries)) {
-                    html += '<table>';
-                    html += '<tr><th>Field</th><th>Value</th></tr>';
-                    entries.forEach(entry => {
-                        const key = entry.key || entry.name || 'unknown';
-                        const value = entry.value || entry.answer || '';
-                        html += `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(String(value))}</td></tr>`;
-                    });
-                    html += '</table>';
+            // Metadata instance: render all fields except Box internal ($-prefixed) keys.
+            const fields = Object.entries(metadata).filter(([key]) => !key.startsWith('$'));
+            if (fields.length > 0) {
+                html += '<table>';
+                html += '<tr><th>Field</th><th>Value</th></tr>';
+                for (const [key, value] of fields) {
+                    const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                    html += `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(displayValue)}</td></tr>`;
                 }
+                html += '</table>';
+            } else {
+                html += `<p style="color:#6b7280;">No metadata fields returned.</p>`;
             }
 
             // Show raw JSON
