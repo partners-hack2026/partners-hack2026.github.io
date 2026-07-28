@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CIMD Callback</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #f0fdf4; }
+        .card { background: white; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+        h2 { color: #065f46; margin-bottom: 8px; }
+        p { color: #6b7280; font-size: 14px; }
+        .code { background: #f9fafb; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; word-break: break-all; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 id="title">Processing...</h2>
+        <p id="message">Sending authorization code back to the app.</p>
+        <div class="code" id="codeDisplay"></div>
+    </div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
+
+        if (error) {
+            document.getElementById('title').textContent = 'Authorization Failed';
+            document.getElementById('title').style.color = '#991b1b';
+            document.getElementById('message').textContent = errorDescription || error;
+            document.getElementById('codeDisplay').textContent = `Error: ${error}`;
+        } else if (code) {
+            document.getElementById('title').textContent = 'Authorization Successful';
+            document.getElementById('message').textContent = 'Auth code received. This window will close.';
+            document.getElementById('codeDisplay').textContent = `Code: ${code.substring(0, 20)}...`;
+        } else {
+            document.getElementById('title').textContent = 'No Code Received';
+            document.getElementById('title').style.color = '#991b1b';
+            document.getElementById('message').textContent = 'No authorization code in callback URL.';
+        }
+
+        // Send result back to opener window
+        if (window.opener) {
+            window.opener.postMessage({
+                type: 'cimd_callback',
+                code: code,
+                state: state,
+                error: error,
+                errorDescription: errorDescription
+            }, '*');
+
+            // Close after a short delay
+            setTimeout(() => window.close(), 2000);
+        }
+    </script>
+</body>
+</html>
