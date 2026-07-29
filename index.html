@@ -283,7 +283,7 @@
 
             const compositeState = state + '|' + codeVerifier + '|' + clientId;
 
-            const authorizeParams = new URLSearchParams({
+            const authorizeParams = {
                 client_id: clientId,
                 redirect_uri: redirectUri,
                 response_type: 'code',
@@ -291,13 +291,13 @@
                 state: compositeState,
                 code_challenge: codeChallenge,
                 code_challenge_method: 'S256'
-            });
+            };
 
-            const authorizeUrl = `${getDevpodBase()}/api/oauth2/authorize?${authorizeParams.toString()}`;
+            const authorizeUrl = `${getDevpodBase()}/api/oauth2/authorize`;
 
             log(`client_id: ${clientId}`, 'info');
             log(`redirect_uri: ${redirectUri} (devpod-hosted)`, 'info');
-            log(`Opening authorize URL...`, 'warn');
+            log(`Opening authorize URL (POST, sends Origin header)...`, 'warn');
 
             setStep(1, 'done');
             setStep(2, 'active');
@@ -305,11 +305,42 @@
             log('After consent, devpod callback exchanges token + calls API (same origin)', 'info');
             log('Results come back via postMessage from devpod callback', 'info');
 
-            window.open(authorizeUrl, 'cimd_auth', 'width=600,height=700');
+            // Initiate /authorize as a POST navigation into a popup. A POST (unlike a
+            // top-level GET) makes the browser attach the Origin header, which the Box
+            // server validates against the CIMD metadata URL (client_id) origin.
+            openAuthorizeViaPost(authorizeUrl, authorizeParams);
             window.addEventListener('message', handleCimdResult);
         }
 
+        // Opens a named popup and submits a form POST into it, so the /authorize request
+        // carries an Origin header. Uses a transient form/target rather than a query string.
+        function openAuthorizeViaPost(url, params) {
+            const popup = window.open('', 'cimd_auth', 'width=600,height=700');
+
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = url;
+            form.target = 'cimd_auth';
+            form.style.display = 'none';
+
+            for (const [key, value] of Object.entries(params)) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = key;
+                input.value = value;
+                form.appendChild(input);
+            }
+
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+            return popup;
+        }
+
         function handleCimdResult(event) {
+            // Only accept messages from the devpod-hosted callback that ran the token
+            // exchange. Rejecting other origins prevents a rogue window from injecting a token.
+            if (event.origin !== getDevpodBase()) return;
             if (!event.data || event.data.type !== 'cimd_result') return;
             window.removeEventListener('message', handleCimdResult);
 

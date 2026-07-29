@@ -39,7 +39,9 @@
             document.getElementById('message').textContent = 'No authorization code in callback URL.';
         }
 
-        // Send result back to opener window
+        // Send result back to opener window. Target the app's exact origin rather than
+        // '*' so the auth code/state can never be delivered to an unexpected window.
+        const APP_ORIGIN = 'https://partners-hack2026.github.io';
         if (window.opener) {
             window.opener.postMessage({
                 type: 'cimd_callback',
@@ -47,7 +49,7 @@
                 state: state,
                 error: error,
                 errorDescription: errorDescription
-            }, '*');
+            }, APP_ORIGIN);
 
             // Close after a short delay
             setTimeout(() => window.close(), 2000);
