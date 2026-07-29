@@ -1,0 +1,21 @@
+{
+  "client_name": "Partners Hack 2026 CIMD App",
+  "client_uri": "https://partners-hack2026.github.io/.well-known/oauth-client-metadata.json",
+  "redirect_uris": [
+    "https://partners-hack2026.github.io/callback.html",
+    "http://127.0.0.1:8090/callback"
+  ],
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "scope": "root_readwrite",
+  "token_endpoint_auth_method": "none",
+  "response_types": [
+    "code"
+  ],
+  "logo_uri": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Box%2C_Inc._logo.svg/120px-Box%2C_Inc._logo.svg.png",
+  "contacts": [
+    "kkalinski@box.com"
+  ]
+}
