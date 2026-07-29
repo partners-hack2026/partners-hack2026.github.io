@@ -85,8 +85,8 @@
                 <label for="devpod">Devpod Name</label>
                 <input type="text" id="devpod" value="kkalinski" placeholder="your-devpod-name">
 
-                <label for="metadataPath">Metadata Path (on devpod)</label>
-                <input type="text" id="metadataPath" value="/.well-known/oauth-client-metadata.json" placeholder="/.well-known/oauth-client-metadata.json">
+                <label for="metadataUrl">Metadata URL (Client ID)</label>
+                <input type="text" id="metadataUrl" value="https://partners-hack2026.github.io/.well-known/oauth-client-metadata.json" placeholder="https://partners-hack2026.github.io/.well-known/oauth-client-metadata.json">
 
                 <label for="scope">Requested Scopes</label>
                 <input type="text" id="scope" value="root_readwrite ai.readwrite" placeholder="root_readwrite ai.readwrite">
@@ -205,9 +205,7 @@
         }
 
         function getClientId() {
-            const base = getDevpodBase();
-            const path = document.getElementById('metadataPath').value.trim();
-            return base + path;
+            return document.getElementById('metadataUrl').value.trim();
         }
 
         function getRedirectUri() {
@@ -215,7 +213,7 @@
         }
 
         document.getElementById('devpod').addEventListener('input', updateComputed);
-        document.getElementById('metadataPath').addEventListener('input', updateComputed);
+        document.getElementById('metadataUrl').addEventListener('input', updateComputed);
         function updateComputed() {
             document.getElementById('clientId').value = getClientId();
             document.getElementById('redirectUri').value = getRedirectUri();
