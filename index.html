@@ -135,7 +135,7 @@
                 </div>
 
                 <label for="folderId" style="margin-top:12px;">Destination Folder ID</label>
-                <input type="text" id="folderId" value="0" placeholder="0 (root folder)">
+                <input type="text" id="folderId" value="9024884610" placeholder="9024884610">
             </div>
 
             <div class="card">
@@ -462,7 +462,7 @@
         }
 
         async function uploadFileToBox(file) {
-            const folderId = document.getElementById('folderId').value || '0';
+            const folderId = document.getElementById('folderId').value || '9024884610';
             const attributes = JSON.stringify({
                 name: file.name,
                 parent: { id: folderId }
