@@ -85,9 +85,6 @@
                 <label for="devpod">Devpod Name</label>
                 <input type="text" id="devpod" value="kkalinski" placeholder="your-devpod-name">
 
-                <label for="metadataUrl">Metadata URL (Client ID)</label>
-                <input type="text" id="metadataUrl" value="https://partners-hack2026.github.io/.well-known/oauth-client-metadata.json" placeholder="https://partners-hack2026.github.io/.well-known/oauth-client-metadata.json">
-
                 <label for="scope">Requested Scopes</label>
                 <input type="text" id="scope" value="root_readwrite ai.readwrite" placeholder="root_readwrite ai.readwrite">
 
@@ -205,7 +202,9 @@
         }
 
         function getClientId() {
-            return document.getElementById('metadataUrl').value.trim();
+            // Derive the CIMD metadata URL (client_id) from the page's own origin,
+            // so it's correct wherever this site is hosted.
+            return window.location.origin + '/.well-known/oauth-client-metadata.json';
         }
 
         function getRedirectUri() {
@@ -213,7 +212,6 @@
         }
 
         document.getElementById('devpod').addEventListener('input', updateComputed);
-        document.getElementById('metadataUrl').addEventListener('input', updateComputed);
         function updateComputed() {
             document.getElementById('clientId').value = getClientId();
             document.getElementById('redirectUri').value = getRedirectUri();
